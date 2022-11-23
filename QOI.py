@@ -34,8 +34,13 @@ class Image():
     def set_pixel_list(self, pix_list: list):
         assert type(pix_list) == list, "input was not a list"
         assert len(pix_list) == self.__dimx*self.__dimy, "len() was not dimx*dimy"
-        assert max(pix_list) < 256, "max was larger than 255"
-        assert min(pix_list) >= 0, "min was less than 0"
+        assert all([type(i) == list for i in pix_list]), "each item in list needs to be list"
+        if self.__mode == "RGB":
+            assert all([len(i) == 3 for i in pix_list]), "len of items in list needs to be 3 for RGB"
+        else:
+            assert all([len(i) == 4 for i in pix_list]), "len of items in list needs to be 4 for RGBA"
+        assert max([max(i) for i in pix_list]) < 256, "max was larger than 255"
+        assert min([min(i) for i in pix_list]) >= 0, "min was less than 0"
         self.__pixel_list = pix_list
 
     def encode(self, file):
@@ -53,11 +58,15 @@ class Image():
         # file header has been created according to QOI specification
         image_bytes = bytearray()
         running_pixels = [0 for _ in range(64)]
-        for pixel in self.__pixel_list:
+        for px in range(self.__pixel_list):
+            pixel = self.__pixel_list[px]
             tag = str()  # current chunk's tag, either 2 bit or 8 bit
             chunk_choice = str()  # one of RGB, RGBA, INDEX, DIFF, LUMA, RUN
             is_in_running_pixels = (pixel in running_pixels)
-            
+            is_within_diff_range = all([abs(pixel(i)-running_pixels[-1][i]) < 4 for i in range(mode)])
+            is_within_luma_range = None  # TODO
+            can_run = (pixel == running_pixels[-1])
+            # above checks which encoding style can be used
 
 
             running_pixels = running_pixels[1:]  # shift pixels over in the buffer
@@ -75,5 +84,5 @@ class Image():
 
 if __name__ == "__main__":
     img = Image(2, 2)
-    img.set_pixel_list([0, 255, 128, 128])
+    img.set_pixel_list([[0, 0, 0], [255, 255, 255], [128, 128, 128], [128, 128, 128]])
     img.encode("file")
