@@ -60,17 +60,45 @@ class Image():
         running_pixels = [0 for _ in range(64)]
         for px in range(self.__pixel_list):
             pixel = self.__pixel_list[px]
-            tag = str()  # current chunk's tag, either 2 bit or 8 bit
-            chunk_choice = str()  # one of RGB, RGBA, INDEX, DIFF, LUMA, RUN
             is_in_running_pixels = (pixel in running_pixels)
-            is_within_diff_range = all([abs(pixel(i)-running_pixels[-1][i]) < 4 for i in range(mode)])
-            is_within_luma_range = None  # TODO
-            can_run = (pixel == running_pixels[-1])
+            is_within_diff_range = all([-2 <= pixel[i]-self.__pixel_list[px-1][i] <= 1  or -2 <= pixel[i]+256-self.__pixel_list[px-1][i] <= 1 or -2 <= pixel[i]-256-self.__pixel_list[px-1][i] <= 1 for i in range(mode)])  # check with wraparound
+            is_within_luma_range = None  # TODO/FIXME
+            can_run = (pixel == self.__pixel_list[px-1])
             # above checks which encoding style can be used
-
-
-            running_pixels = running_pixels[1:]  # shift pixels over in the buffer
-            running_pixels.append(pixel)  # add current pixel
+            if any([is_in_running_pixels, is_within_diff_range, is_within_luma_range, can_run]) is False:
+                # if none of the methods work, we have to story in RGB/RGBA directly
+                if self.__mode == "RGB":
+                    image_bytes.extend(bytearray([int(254), int(pixel[0]), int(pixel[1], int(pixel[2]))]))
+                else:
+                    image_bytes.extend(bytearray([int(255), int(pixel[0]), int(pixel[1], int(pixel[2])), int(pixel[3])]))
+            elif can_run:
+                still_same = True
+                run = 0
+                while still_same and run < 63:  # BUG/FIXME when doing run, we need to skip those pixels after
+                    run += 1
+                    if self.__pixel_list(px+run) != pixel:
+                        still_same = False
+                image_bytes.extend(bytearray([int(192 + run-1)]))  # first two bits (flag) are 11, so number is run length (1-62) plus 128+64 = 192, bias of -1 on run (0 means run 1)
+            elif is_in_running_pixels:
+                image_bytes.extend(bytearray([int(running_pixels.index(pixel))]))  # first two bits (flag) are 00, so number must be less than 64 (guaranteed from len(running_pixels))
+            elif is_within_diff_range:
+                # -2 from previous pixel is stored as 0 (00), +1 is stored as 3 (11)
+                # 1-2 = 255, 255+1 = 0, wraparound
+                diff = [0, 0, 0]
+                for c in range(3):
+                    diff[c] = pixel[c] - self.__pixel_list[px-1][c]
+                    if diff < 0:  # previous pixel was 255 or something
+                        diff[c] += 256
+                    elif diff > 1:  # current pixel is 255 or something
+                        diff[c] -= 256
+                image_bytes.extend(bytearray([int(64 + (diff[0]+2)*16 + (diff[1]+2)*4 + (diff[2]+2))]))  # first two bits (flag) are 01, so we add 64, each next two bits is dr, dg, db, bias of -2
+            elif is_within_luma_range:
+                pass # TODO/FIXME
+            if self.__mode == "RGB":
+                pix_index = (pixel[0]*3 + pixel[1]*5 + pixel[2]*7) % 64
+            else:
+                pix_index = (pixel[0]*3 + pixel[1]*5 + pixel[2]*7 + pixel[3]*11) % 64
+            running_pixels[pix_index] = pixel
 
         eof = bytearray([0, 0, 0, 0, 0, 0, 0, 1])  # QOIs end of file marker
         self.__write_file(file)
