@@ -58,14 +58,24 @@ class Image():
         # file header has been created according to QOI specification
         image_bytes = bytearray()
         running_pixels = [0 for _ in range(64)]
-        for px in range(self.__pixel_list):
+        for px in range(self.__pixel_list):  # TODO some optimization to be done here, avoid doing unnecessary computations
             pixel = self.__pixel_list[px]
             is_in_running_pixels = (pixel in running_pixels)
-            is_within_diff_range = all([-2 <= pixel[i]-self.__pixel_list[px-1][i] <= 1  or -2 <= pixel[i]+256-self.__pixel_list[px-1][i] <= 1 or -2 <= pixel[i]-256-self.__pixel_list[px-1][i] <= 1 for i in range(mode)])  # check with wraparound
-            is_within_luma_range = None  # TODO/FIXME
+            is_within_diff_range = all([-2 <= pixel[i]-self.__pixel_list[px-1][i] <= 1  or -2 <= pixel[i]+256-self.__pixel_list[px-1][i] <= 1 or -2 <= pixel[i]-256-self.__pixel_list[px-1][i] <= 1 for i in range(3)])  # check with wraparound
+            is_green_within_luma_range = -32 <= pixel[1]-self.__pixel_list[px-1][1] <= 31  or -32 <= pixel[1]+256-self.__pixel_list[px-1][1] <= 31 or -32 <= pixel[1]-256-self.__pixel_list[px-1][1] <= 31
+            if is_green_within_luma_range:
+                green_luma_diff = pixel[1] - self.__pixel_list[px-1][1]
+                if green_luma_diff < 0:  # previous pixel was 255 or something
+                    green_luma_diff += 256
+                elif green_luma_diff > 31:  # current pixel is 255 or something
+                    green_luma_diff -= 256
+                is_red_within_luma_range = -8 <= pixel[0]-self.__pixel_list[px-1][0]-green_luma_diff <= 7  or -8 <= pixel[0]+256-self.__pixel_list[px-1][0]-green_luma_diff <= 7 or -8 <= pixel[0]-256-self.__pixel_list[px-1][0]-green_luma_diff <= 7
+                if is_red_within_luma_range:
+                    is_blue_within_luma_range = -8 <= pixel[2]-self.__pixel_list[px-1][2]-green_luma_diff <= 7  or -8 <= pixel[2]+256-self.__pixel_list[px-1][2]-green_luma_diff <= 7 or -8 <= pixel[2]-256-self.__pixel_list[px-1][2]-green_luma_diff <= 7
+            is_within_luma_range = all([is_green_within_luma_range, is_red_within_luma_range, is_blue_within_luma_range])
             can_run = (pixel == self.__pixel_list[px-1])
             # above checks which encoding style can be used
-            if any([is_in_running_pixels, is_within_diff_range, is_within_luma_range, can_run]) is False:
+            if not any([is_in_running_pixels, is_within_diff_range, is_within_luma_range, can_run]):
                 # if none of the methods work, we have to story in RGB/RGBA directly
                 if self.__mode == "RGB":
                     image_bytes.extend(bytearray([int(254), int(pixel[0]), int(pixel[1], int(pixel[2]))]))
@@ -87,13 +97,27 @@ class Image():
                 diff = [0, 0, 0]
                 for c in range(3):
                     diff[c] = pixel[c] - self.__pixel_list[px-1][c]
-                    if diff < 0:  # previous pixel was 255 or something
+                    if diff[c] < 0:  # previous pixel was 255 or something
                         diff[c] += 256
-                    elif diff > 1:  # current pixel is 255 or something
+                    elif diff[c] > 1:  # current pixel is 255 or something
                         diff[c] -= 256
-                image_bytes.extend(bytearray([int(64 + (diff[0]+2)*16 + (diff[1]+2)*4 + (diff[2]+2))]))  # first two bits (flag) are 01, so we add 64, each next two bits is dr, dg, db, bias of -2
-            elif is_within_luma_range:
-                pass # TODO/FIXME
+                image_bytes.extend(bytearray([int(64 + (diff[0]+2)*16 + (diff[1]+2)*4 + (diff[2]+2))]))  # first two bits (flag) are 01, so we add 64, each next two bits is dr, dg, db, bias of 2
+            elif is_within_luma_range:  # could be replaced with else but kept for clarity
+                diff_green = int()  # 6 bits (0-63), -32 stored as 0, 31 stored as 63
+                diff_red_from_green = int()  # 3 bits (0-15), -8 stored as 0, 7 stored as 15
+                diff_blue_from_green = int()  # 4 bits (0-15), -8 stored as 0, 7 stored as 15
+                diff_green = green_luma_diff  # previously calculated
+                diff_red_from_green = pixel[0] - self.__pixel_list[px-1][0]-diff_green
+                if diff_red_from_green < 0:  # previous pixel was 255 or something
+                    diff_red_from_green += 256
+                elif diff_red_from_green > 7:  # current pixel is 255 or something
+                    diff_red_from_green -= 256
+                diff_blue_from_green = pixel[2] - self.__pixel_list[px-1][2]-diff_green
+                if diff_blue_from_green < 0:  # previous pixel was 255 or something
+                    diff_blue_from_green += 256
+                elif diff_blue_from_green > 7:  # current pixel is 255 or something
+                    diff_blue_from_green -= 256
+                image_bytes.extend(bytearray([int(128 + (diff_green+32)), int((diff_red_from_green+8)*16 + (diff_blue_from_green+8))]))  # two bytes, first two bits (flag) are 10, so we add 128, then diff green in the first byte, bias of 32 for that one. second byte is diff red from green then diff blue from green, bias of 8 for each of those
             if self.__mode == "RGB":
                 pix_index = (pixel[0]*3 + pixel[1]*5 + pixel[2]*7) % 64
             else:
@@ -101,9 +125,13 @@ class Image():
             running_pixels[pix_index] = pixel
 
         eof = bytearray([0, 0, 0, 0, 0, 0, 0, 1])  # QOIs end of file marker
+        bytes_to_write = bytearray()
+        bytes_to_write.extend(file_header)
+        bytes_to_write.extend(image_bytes)
+        bytes_to_write.extend(eof)
         self.__write_file(file)
 
-    def __write_file(self, file):
+    def __write_file(self, file, bytes: bytearray):
         pass
 
     def decode(self, file):
