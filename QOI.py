@@ -1,18 +1,30 @@
 import bitio
 
-def uint(num: int, digits: int):
+def uint32(num: int):
     """
-    returns a string binary representation of the input int as a uint32
+    returns a 4 byte bytearray representation of the input int as a uint32
     """
     assert type(num) == int, "input must be int"
     assert num >= 0, "input must be positive"
-    assert num < 2**digits, "input must be less than 2^digits"
-    assert type(digits) == int, "digits must be int"
-    assert digits > 0, "digits must be positive"
+    assert num < 2**32, "input must be less than 2^32"
     binary_string = bin(num)[2:]
-    binary_string = "0"*(digits-len(binary_string)) + binary_string
+    binary_string = "0"*(32-len(binary_string)) + binary_string
+    uint32_byte_array = bytearray([int(binary_string[24:32], base=2), int(binary_string[16:24], base=2), int(binary_string[8:16], base=2), int(binary_string[0:8], base=2)])
 
-    return binary_string
+    return uint32_byte_array
+
+
+def uint8(num: int):
+    """
+    returns a 1 byte bytearray representation of the input int as a uint8
+    """
+    assert type(num) == int, "input must be int"
+    assert num >= 0, "input must be positive"
+    assert num < 2**8, "input must be less than 2^8"
+    uint8_byte_array = bytearray([num])
+
+    return uint8_byte_array
+
 
 class Image():
     def __init__(self, x_dimension: int = None, y_dimension: int = None, mode_number_of_colors: str = "RGB", colorspace: int = 1):
@@ -43,29 +55,31 @@ class Image():
         assert min([min(i) for i in pix_list]) >= 0, "min was less than 0"
         self.__pixel_list = pix_list
 
-    def encode(self, file):
+    def encode(self, filepathname: str):
         assert type(self.__pixel_list) == list, "pixel list was not a list"
         assert len(self.__pixel_list) > 0, "pixel list was empty"
         if self.__mode_string == "RGB":
             mode_number_of_colors = 3
         else:
             mode_number_of_colors = 4
-        file_header_bytes = bytearray("qoif", "UTF-8")
-        file_header_bytes.extend(bytearray(uint(self.__x_dimension, 32), "UTF-8"))
-        file_header_bytes.extend(bytearray(uint(self.__y_dimension, 32), "UTF-8"))
-        file_header_bytes.extend(bytearray(uint(mode_number_of_colors, 8), "UTF-8"))
-        file_header_bytes.extend(bytearray(uint(self.__colorspace, 8), "UTF-8"))
+        file_header_bytes = bytearray("qoif", "UTF-8")  # QOIs file header
+        file_header_bytes.extend(uint32(self.__x_dimension))
+        file_header_bytes.extend(uint32(self.__y_dimension))
+        file_header_bytes.extend(uint8(mode_number_of_colors))
+        file_header_bytes.extend(uint8(self.__colorspace))
         # file header has been created according to QOI specification
         image_bytes = bytearray()
         running_pixels_array = [0 for _ in range(64)]  # check specification
-        for current_pixel_index in range(self.__pixel_list):  # TODO some optimization to be done here, avoid doing unnecessary computations
+        for current_pixel_index in range(len(self.__pixel_list)):  # TODO some optimization to be done here, avoid doing unnecessary computations
             pixel = self.__pixel_list[current_pixel_index]
             is_in_running_pixels_array = (pixel in running_pixels_array)
             is_within_difference_range = all([-2 <= pixel[i]-self.__pixel_list[current_pixel_index-1][i] <= 1  or -2 <= pixel[i]+256-self.__pixel_list[current_pixel_index-1][i] <= 1 or -2 <= pixel[i]-256-self.__pixel_list[current_pixel_index-1][i] <= 1 for i in range(3)])  # check with wraparound
             is_green_within_luma_range = -32 <= pixel[1]-self.__pixel_list[current_pixel_index-1][1] <= 31  or -32 <= pixel[1]+256-self.__pixel_list[current_pixel_index-1][1] <= 31 or -32 <= pixel[1]-256-self.__pixel_list[current_pixel_index-1][1] <= 31
+            is_red_within_luma_range = False
+            is_blue_within_luma_range = False
             if is_green_within_luma_range:
                 green_luma_difference = pixel[1] - self.__pixel_list[current_pixel_index-1][1]
-                if green_luma_difference < 0:  # previous pixel was 255 or something
+                if green_luma_difference < -32:  # previous pixel was 255 or something
                     green_luma_difference += 256
                 elif green_luma_difference > 31:  # current pixel is 255 or something
                     green_luma_difference -= 256
@@ -78,15 +92,16 @@ class Image():
             if not any([is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]):
                 # if none of the methods work, we have to story in RGB/RGBA directly
                 if self.__mode_string == "RGB":
-                    image_bytes.extend(bytearray([int(254), int(pixel[0]), int(pixel[1], int(pixel[2]))]))
+                    image_bytes.extend(bytearray([int(254), int(pixel[0]), int(pixel[1]), int(pixel[2])]))
                 else:
-                    image_bytes.extend(bytearray([int(255), int(pixel[0]), int(pixel[1], int(pixel[2])), int(pixel[3])]))
+                    image_bytes.extend(bytearray([int(255), int(pixel[0]), int(pixel[1]), int(pixel[2]), int(pixel[3])]))
             elif can_run:
                 still_same = True
+                max_index = len(self.__pixel_list)-1
                 run = 0
                 while still_same and run < 63:  # BUG/FIXME when doing run, we need to skip those pixels after
                     run += 1
-                    if self.__pixel_list(current_pixel_index+run) != pixel:
+                    if not current_pixel_index+run > max_index and self.__pixel_list[current_pixel_index+run] != pixel:
                         still_same = False
                 image_bytes.extend(bytearray([int(192 + run-1)]))  # first two bits (flag) are 11, so number is run length (1-62) plus 128+64 = 192, bias of -1 on run (0 means run 1)
             elif is_in_running_pixels_array:
@@ -97,7 +112,7 @@ class Image():
                 difference = [0, 0, 0]
                 for c in range(3):
                     difference[c] = pixel[c] - self.__pixel_list[current_pixel_index-1][c]
-                    if difference[c] < 0:  # previous pixel was 255 or something
+                    if difference[c] < -2:  # previous pixel was 255 or something
                         difference[c] += 256
                     elif difference[c] > 1:  # current pixel is 255 or something
                         difference[c] -= 256
@@ -108,12 +123,12 @@ class Image():
                 difference_blue_from_green = int()  # 4 bits (0-15), -8 stored as 0, 7 stored as 15
                 difference_green = green_luma_difference  # previously calculated
                 difference_red_from_green = pixel[0] - self.__pixel_list[current_pixel_index-1][0]-difference_green
-                if difference_red_from_green < 0:  # previous pixel was 255 or something
+                if difference_red_from_green < -8:  # previous pixel was 255 or something
                     difference_red_from_green += 256
                 elif difference_red_from_green > 7:  # current pixel is 255 or something
                     difference_red_from_green -= 256
                 difference_blue_from_green = pixel[2] - self.__pixel_list[current_pixel_index-1][2]-difference_green
-                if difference_blue_from_green < 0:  # previous pixel was 255 or something
+                if difference_blue_from_green < -8:  # previous pixel was 255 or something
                     difference_blue_from_green += 256
                 elif difference_blue_from_green > 7:  # current pixel is 255 or something
                     difference_blue_from_green -= 256
@@ -129,16 +144,27 @@ class Image():
         bytes_to_write.extend(file_header_bytes)
         bytes_to_write.extend(image_bytes)
         bytes_to_write.extend(end_of_file_bytes)
-        self.__write_file(file, bytes_to_write)
+        self.__write_file(filepathname, bytes_to_write)
 
-    def __write_file(self, file, bytes: bytearray):
-        pass
+    def __write_file(self, filepathname: str, bytes: bytearray):
+        if not filepathname.endswith(".qoi"):
+            filepathname += ".qoi"
+        with open(filepathname, "wb") as file_writer:
+            file_writer.write(bytes)
 
     def decode(self, file):
         pass
 
 
 if __name__ == "__main__":
-    img = Image(2, 2)
-    img.set_pixel_list([[0, 0, 0], [255, 255, 255], [128, 128, 128], [128, 128, 128]])
+    from PIL import Image as IMG
+
+    print("loading image...")
+    img = IMG.open("IMG.BMP")
+    pixel_list = [list(pixel_values) for pixel_values in list(img.getdata())]
+    dimensions = [img.width, img.height]
+    print("creating image object")
+    img = Image(dimensions[0], dimensions[1])
+    img.set_pixel_list(pixel_list)
+    print("encoding and writing...")
     img.encode("file")
