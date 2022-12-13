@@ -1,6 +1,3 @@
-import bitio
-
-
 def uint32(num: int):
     """
     returns a 4 byte bytearray representation of the input int as a uint32
