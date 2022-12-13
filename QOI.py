@@ -10,7 +10,7 @@ def uint32(num: int):
     assert num < 2**32, "input must be less than 2^32"
     binary_string = bin(num)[2:]
     binary_string = "0"*(32-len(binary_string)) + binary_string
-    uint32_byte_array = bytearray([int(binary_string[24:32], base=2), int(binary_string[16:24], base=2), int(binary_string[8:16], base=2), int(binary_string[0:8], base=2)])
+    uint32_byte_array = bytearray([int(binary_string[0:8], base=2), int(binary_string[8:16], base=2), int(binary_string[16:24], base=2), int(binary_string[24:32], base=2)])
 
     return uint32_byte_array
 
