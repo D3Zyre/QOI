@@ -69,6 +69,7 @@ class Image():
         file_header_bytes.extend(uint8(mode_number_of_colors))
         file_header_bytes.extend(uint8(self.__colorspace))
         # file header has been created according to QOI specification
+        counts = [0, 0, 0, 0, 0] # RGB(A), Array Index, Diff, Luma, Run
         image_bytes = bytearray()
         running_pixels_array = [0 for _ in range(64)]  # check specification
         run = 0
@@ -95,23 +96,27 @@ class Image():
                 can_run = (pixel == self.__pixel_list[current_pixel_index-1])
                 # above checks which encoding style can be used
                 if not any([is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]):
+                    counts[0] += 1
                     # if none of the methods work, we have to story in RGB/RGBA directly
                     if self.__mode_string == "RGB":
                         image_bytes.extend(bytearray([int(254), int(pixel[0]), int(pixel[1]), int(pixel[2])]))
                     else:
                         image_bytes.extend(bytearray([int(255), int(pixel[0]), int(pixel[1]), int(pixel[2]), int(pixel[3])]))
                 elif can_run:
+                    counts[4] += 1
                     still_same = True
                     max_index = len(self.__pixel_list)-1
                     run = 0
-                    while still_same and run < 63:  # BUG/FIXME when doing run, we need to skip those pixels after
+                    while still_same and run < 63:
                         run += 1
                         if not current_pixel_index+run > max_index and self.__pixel_list[current_pixel_index+run] != pixel:
                             still_same = False
                     image_bytes.extend(bytearray([int(192 + run-1)]))  # first two bits (flag) are 11, so number is run length (1-62) plus 128+64 = 192, bias of -1 on run (0 means run 1)
                 elif is_in_running_pixels_array:
+                    counts[1] += 1
                     image_bytes.extend(bytearray([int(running_pixels_array.index(pixel))]))  # first two bits (flag) are 00, so number must be less than 64 (guaranteed from len(running_pixels_array))
                 elif is_within_difference_range:
+                    counts[2] += 1
                     # -2 from previous pixel is stored as 0 (00), +1 is stored as 3 (11)
                     # 1-2 = 255, 255+1 = 0, wraparound
                     difference = [0, 0, 0]
@@ -123,6 +128,7 @@ class Image():
                             difference[c] -= 256
                     image_bytes.extend(bytearray([int(64 + (difference[0]+2)*16 + (difference[1]+2)*4 + (difference[2]+2))]))  # first two bits (flag) are 01, so we add 64, each next two bits is dr, dg, db, bias of 2
                 elif is_within_luma_range:  # could be replaced with else but kept for clarity
+                    counts[3] += 1
                     difference_green = int()  # 6 bits (0-63), -32 stored as 0, 31 stored as 63
                     difference_red_from_green = int()  # 3 bits (0-15), -8 stored as 0, 7 stored as 15
                     difference_blue_from_green = int()  # 4 bits (0-15), -8 stored as 0, 7 stored as 15
@@ -143,6 +149,8 @@ class Image():
                 else:
                     pixel_index_in_running_pixels = (pixel[0]*3 + pixel[1]*5 + pixel[2]*7 + pixel[3]*11) % 64
                 running_pixels_array[pixel_index_in_running_pixels] = pixel
+
+        print(counts)  # DEBUG
 
         end_of_file_bytes = bytearray([0, 0, 0, 0, 0, 0, 0, 1])  # QOIs end of file marker
         bytes_to_write = bytearray()
