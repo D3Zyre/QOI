@@ -58,15 +58,21 @@ class Image():
         as part of the encoding process,
         gets called for each pixel in the pixel list,
         checks which encoding methods are available to use for that pixel
-        
+
         returns: a list of booleans: [OP_INDEX, OP_DIFF, OP_LUMA, OP_RUN]
         if an item is true that means that encoding method can be used
         """
         pixel = self.__pixel_list[current_pixel_index]
 
         is_in_running_pixels_array = (pixel in running_pixels_array)
-        is_within_difference_range = all([-2 <= pixel[i]-self.__pixel_list[current_pixel_index-1][i] <= 1 or -2 <= pixel[i]+256-self.__pixel_list[current_pixel_index-1][i] <= 1 or -2 <= pixel[i]-256-self.__pixel_list[current_pixel_index-1][i] <= 1 for i in range(3)])  # check with wraparound
-        is_green_within_luma_range = -32 <= pixel[1]-self.__pixel_list[current_pixel_index-1][1] <= 31 or -32 <= pixel[1]+256-self.__pixel_list[current_pixel_index-1][1] <= 31 or -32 <= pixel[1]-256-self.__pixel_list[current_pixel_index-1][1] <= 31
+
+        is_within_difference_range = all([-2 <= pixel[i]-self.__pixel_list[current_pixel_index-1][i] <= 1 or
+                                          -2 <= pixel[i]+256-self.__pixel_list[current_pixel_index-1][i] <= 1 or
+                                          -2 <= pixel[i]-256-self.__pixel_list[current_pixel_index-1][i] <= 1 for i in range(3)])  # check with wraparound
+
+        is_green_within_luma_range = (-32 <= pixel[1]-self.__pixel_list[current_pixel_index-1][1] <= 31 or
+                                      -32 <= pixel[1]+256-self.__pixel_list[current_pixel_index-1][1] <= 31 or
+                                      -32 <= pixel[1]-256-self.__pixel_list[current_pixel_index-1][1] <= 31)
         is_red_within_luma_range = False
         is_blue_within_luma_range = False
         if is_green_within_luma_range:
@@ -75,10 +81,15 @@ class Image():
                 green_luma_difference += 256
             elif green_luma_difference > 31:  # current pixel is 255 or something
                 green_luma_difference -= 256
-            is_red_within_luma_range = -8 <= pixel[0]-self.__pixel_list[current_pixel_index-1][0]-green_luma_difference <= 7 or -8 <= pixel[0]+256-self.__pixel_list[current_pixel_index-1][0]-green_luma_difference <= 7 or -8 <= pixel[0]-256-self.__pixel_list[current_pixel_index-1][0]-green_luma_difference <= 7
+            is_red_within_luma_range = -8 <= (pixel[0]-self.__pixel_list[current_pixel_index-1][0]-green_luma_difference <= 7 or
+                                              -8 <= pixel[0]+256-self.__pixel_list[current_pixel_index-1][0]-green_luma_difference <= 7 or
+                                              -8 <= pixel[0]-256-self.__pixel_list[current_pixel_index-1][0]-green_luma_difference <= 7)
             if is_red_within_luma_range:
-                is_blue_within_luma_range = -8 <= pixel[2]-self.__pixel_list[current_pixel_index-1][2]-green_luma_difference <= 7 or -8 <= pixel[2]+256-self.__pixel_list[current_pixel_index-1][2]-green_luma_difference <= 7 or -8 <= pixel[2]-256-self.__pixel_list[current_pixel_index-1][2]-green_luma_difference <= 7
+                is_blue_within_luma_range = -8 <= (pixel[2]-self.__pixel_list[current_pixel_index-1][2]-green_luma_difference <= 7 or
+                                                   -8 <= pixel[2]+256-self.__pixel_list[current_pixel_index-1][2]-green_luma_difference <= 7 or
+                                                   -8 <= pixel[2]-256-self.__pixel_list[current_pixel_index-1][2]-green_luma_difference <= 7)
         is_within_luma_range = all([is_green_within_luma_range, is_red_within_luma_range, is_blue_within_luma_range])
+
         can_run = (pixel == self.__pixel_list[current_pixel_index-1])
 
         return [is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]
@@ -99,13 +110,13 @@ class Image():
         file_header_bytes.extend(uint8(self.__colorspace))
 
         # predefining variables needed inside for loop
-        counts = [0, 0, 0, 0, 0] # RGB(A), Array Index, Diff, Luma, Run
+        counts = [0, 0, 0, 0, 0]  # RGB(A), Array Index, Diff, Luma, Run
         image_bytes = bytearray()
         running_pixels_array = [0 for _ in range(64)]  # check specification
         run = 0
 
         # iterating through each pixel in the image
-        for current_pixel_index in range(len(self.__pixel_list)):  # TODO some optimization to be done here, avoid doing unnecessary computations
+        for current_pixel_index in range(len(self.__pixel_list)):
             if run > 0:  # if we are currently on a run of pixels, skip all pixels until after the run
                 run -= 1
             else:
