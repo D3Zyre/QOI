@@ -24,6 +24,33 @@ def uint8(num: int):
     return uint8_byte_array
 
 
+def closest_difference_wraparound(current: int, previous: int, wrap_range = (0, 255)):  # FIXME actually implement wrap_range
+    """
+    returns the signed absolute smallest difference (int, current-previous)
+    with wraparound operation in wrap_range
+    default range is (0, 255), that means 255 + 1 = 0
+    """
+    difference = int()
+
+    normal_difference = current - previous
+    top_wrap_difference = current - previous + 256  # previous is close to top, current is close to bottom
+    bottom_wrap_difference = current - previous - 256  # previous is close to bottom, current is close to top
+
+    absolute_normal_difference = abs(normal_difference)
+    absolute_top_wrap_difference = abs(top_wrap_difference)
+    absolute_bottom_wrap_difference = abs(bottom_wrap_difference)
+
+    smallest_absolute = min([absolute_normal_difference, absolute_top_wrap_difference, absolute_bottom_wrap_difference])
+    if smallest_absolute == absolute_normal_difference:
+        difference = normal_difference
+    elif smallest_absolute == absolute_top_wrap_difference:
+        difference = top_wrap_difference
+    else:
+        difference = bottom_wrap_difference
+
+    return difference
+
+
 class Image():
     def __init__(self, x_dimension: int = 0, y_dimension: int = 0, mode_number_of_colors: str = "RGB", colorspace: int = 1):
         """
@@ -67,28 +94,20 @@ class Image():
 
         is_in_running_pixels_array = (pixel in running_pixels_array)
 
-        is_within_difference_range = all([-2 <= pixel[i]-previous_pixel[i] <= 1 or  # within range no wrap or
-                                          -2 <= pixel[i]+256-previous_pixel[i] <= 1 or  # within range with bottom wrap or
-                                          -2 <= pixel[i]-256-previous_pixel[i] <= 1 for i in range(3)])  # within range with top wrap
+        difference_red, difference_green, difference_blue = [closest_difference_wraparound(pixel[i], previous_pixel[i]) for i in range(3)]
+        is_within_difference_range = all([-2 <= difference_red <= 1,
+                                          -2 <= difference_green <= 1,
+                                          -2 <= difference_blue <= 1])
 
-        is_green_within_luma_range = (-32 <= pixel[1]-previous_pixel[1] <= 31 or
-                                      -32 <= pixel[1]+256-previous_pixel[1] <= 31 or
-                                      -32 <= pixel[1]-256-previous_pixel[1] <= 31)
+        green_luma_difference = closest_difference_wraparound(pixel[1], previous_pixel[1])
+        is_green_within_luma_range = (-32 <= green_luma_difference <= 31)
+        
         is_red_within_luma_range = False
         is_blue_within_luma_range = False
         if is_green_within_luma_range:  # avoid checking red and blue if green is already false
-            green_luma_difference = pixel[1] - previous_pixel[1]
-            if green_luma_difference < -32:  # bottom wraparound if necessary
-                green_luma_difference += 256
-            elif green_luma_difference > 31:  # top wraparound if necessary
-                green_luma_difference -= 256
-            is_red_within_luma_range = (-8 <= pixel[0]-previous_pixel[0]+green_luma_difference <= 7 or
-                                        -8 <= pixel[0]+256-previous_pixel[0]+green_luma_difference <= 7 or
-                                        -8 <= pixel[0]-256-previous_pixel[0]+green_luma_difference <= 7)
+            is_red_within_luma_range = (-8 <= closest_difference_wraparound(pixel[0], previous_pixel[0]+green_luma_difference) <= 7)
             if is_red_within_luma_range:  # avoid checking blue if red is already false
-                is_blue_within_luma_range = (-8 <= pixel[2]-previous_pixel[2]+green_luma_difference <= 7 or
-                                             -8 <= pixel[2]+256-previous_pixel[2]+green_luma_difference <= 7 or
-                                             -8 <= pixel[2]-256-previous_pixel[2]+green_luma_difference <= 7)
+                is_blue_within_luma_range = (-8 <= closest_difference_wraparound(pixel[2], previous_pixel[2]+green_luma_difference) <= 7)
         is_within_luma_range = all([is_green_within_luma_range, is_red_within_luma_range, is_blue_within_luma_range])
 
         can_run = (pixel == previous_pixel)
@@ -114,10 +133,15 @@ class Image():
         counts = [0, 0, 0, 0, 0]  # RGB(A), Array Index, Diff, Luma, Run
         image_bytes = bytearray()
         running_pixels_array = [0 for _ in range(64)]  # check specification
+        number_of_pixels = len(self.__pixel_list)
         run = 0
 
         # iterating through each pixel in the image
-        for current_pixel_index in range(len(self.__pixel_list)):
+        for current_pixel_index in range(number_of_pixels):
+            # printing progress for debugging
+            if current_pixel_index % 10000 == 0:
+                print("encoding: {:6.2f}%    \r".format(current_pixel_index/number_of_pixels*100), end="")
+
             if run > 0:  # if we are currently on a run of pixels, skip all pixels until after the run
                 run -= 1
             else:
@@ -162,13 +186,7 @@ class Image():
                     counts[2] += 1
                     # -2 from previous pixel is stored as 0 (00), +1 is stored as 3 (11)
                     # 1-2 = 255, 255+1 = 0, wraparound
-                    difference = [0, 0, 0]
-                    for c in range(3):
-                        difference[c] = pixel[c] - previous_pixel[c]
-                        if difference[c] < -2:  # previous pixel was 255 or something
-                            difference[c] += 256
-                        elif difference[c] > 1:  # current pixel is 255 or something
-                            difference[c] -= 256
+                    difference = [closest_difference_wraparound(pixel[c], previous_pixel[c]) for c in range(3)]
                     image_bytes.extend(bytearray([int(64 + (difference[0]+2)*16 + (difference[1]+2)*4 + (difference[2]+2))]))  # first two bits (flag) are 01, so we add 64, each next two bits is dr, dg, db, bias of 2
 
                 # otherwise if the pixel is within the small luma range, encode that
@@ -177,21 +195,10 @@ class Image():
                     difference_green = int()  # 6 bits (0-63), -32 stored as 0, 31 stored as 63
                     difference_red_from_green = int()  # 3 bits (0-15), -8 stored as 0, 7 stored as 15
                     difference_blue_from_green = int()  # 4 bits (0-15), -8 stored as 0, 7 stored as 15
-                    difference_green = pixel[1] - previous_pixel[1]
-                    if difference_green < -32:  # previous pixel was 255 or something
-                        difference_green += 256
-                    elif difference_green > 31:  # current pixel is 255 or something
-                        difference_green -= 256
-                    difference_red_from_green = pixel[0] - previous_pixel[0]+difference_green
-                    if difference_red_from_green < -8:  # previous pixel was 255 or something
-                        difference_red_from_green += 256
-                    elif difference_red_from_green > 7:  # current pixel is 255 or something
-                        difference_red_from_green -= 256
-                    difference_blue_from_green = pixel[2] - previous_pixel[2]+difference_green
-                    if difference_blue_from_green < -8:  # previous pixel was 255 or something
-                        difference_blue_from_green += 256
-                    elif difference_blue_from_green > 7:  # current pixel is 255 or something
-                        difference_blue_from_green -= 256
+
+                    difference_green = closest_difference_wraparound(pixel[1], previous_pixel[1])
+                    difference_red_from_green = closest_difference_wraparound(pixel[0], previous_pixel[0]+difference_green)
+                    difference_blue_from_green = closest_difference_wraparound(pixel[2], previous_pixel[2]+difference_green)
                     image_bytes.extend(bytearray([int(128 + (difference_green+32)), int((difference_red_from_green+8)*16 + (difference_blue_from_green+8))]))  # two bytes, first two bits (flag) are 10, so we add 128, then difference green in the first byte, bias of 32 for that one. second byte is difference red from green then difference blue from green, bias of 8 for each of those
 
                 # update the array of 64 pixels
@@ -210,6 +217,8 @@ class Image():
         bytes_to_write.extend(file_header_bytes)
         bytes_to_write.extend(image_bytes)
         bytes_to_write.extend(end_of_file_bytes)
+
+        print(len(bytes_to_write)/1000000)  # DEBUG TODO remove
 
         # write bytes to file
         self.__write_file(filepathname, bytes_to_write)
