@@ -117,15 +117,13 @@ class Image():
                     # this implies that it's within luma range, so that doesn't need to be checked
                     is_within_luma_range = True
                 else:
-                    green_luma_difference = closest_difference_wraparound(pixel[1], previous_pixel[1])
-                    is_green_within_luma_range = (-32 <= green_luma_difference <= 31)
-                    
+                    is_green_within_luma_range = (-32 <= difference_green <= 31)
                     is_red_within_luma_range = False
                     is_blue_within_luma_range = False
                     if is_green_within_luma_range:  # avoid checking red and blue if green is already false
-                        is_red_within_luma_range = (-8 <= closest_difference_wraparound(pixel[0], previous_pixel[0]+green_luma_difference) <= 7)
+                        is_red_within_luma_range = (-8 <= closest_difference_wraparound(pixel[0], previous_pixel[0]+difference_green) <= 7)
                         if is_red_within_luma_range:  # avoid checking blue if red is already false
-                            is_blue_within_luma_range = (-8 <= closest_difference_wraparound(pixel[2], previous_pixel[2]+green_luma_difference) <= 7)
+                            is_blue_within_luma_range = (-8 <= closest_difference_wraparound(pixel[2], previous_pixel[2]+difference_green) <= 7)
                     is_within_luma_range = all([is_green_within_luma_range, is_red_within_luma_range, is_blue_within_luma_range])
 
         return [is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]
