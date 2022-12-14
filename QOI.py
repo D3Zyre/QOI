@@ -142,10 +142,14 @@ class Image():
                     still_same = True
                     max_index = len(self.__pixel_list)-1
                     run = 0
-                    while still_same and run < 63:
+                    while still_same and run < 62:
                         run += 1
-                        if not current_pixel_index+run > max_index and self.__pixel_list[current_pixel_index+run] != pixel:
+                        if current_pixel_index+run <= max_index:
+                            if self.__pixel_list[current_pixel_index+run] != pixel:
+                                still_same = False
+                        else:
                             still_same = False
+                            run -= 1  # set run to go till the last pixel in the image
                     image_bytes.extend(bytearray([int(192 + run-1)]))  # first two bits (flag) are 11, so number is run length (1-62) plus 128+64 = 192, bias of -1 on run (0 means run 1)
 
                 # otherwise if the pixel is in the array of 64 pixels, encode that
