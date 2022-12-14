@@ -63,34 +63,35 @@ class Image():
         if an item is true that means that encoding method can be used
         """
         pixel = self.__pixel_list[current_pixel_index]
+        previous_pixel = self.__pixel_list[current_pixel_index-1]
 
         is_in_running_pixels_array = (pixel in running_pixels_array)
 
-        is_within_difference_range = all([-2 <= pixel[i]-self.__pixel_list[current_pixel_index-1][i] <= 1 or
-                                          -2 <= pixel[i]+256-self.__pixel_list[current_pixel_index-1][i] <= 1 or
-                                          -2 <= pixel[i]-256-self.__pixel_list[current_pixel_index-1][i] <= 1 for i in range(3)])  # check with wraparound
+        is_within_difference_range = all([-2 <= pixel[i]-previous_pixel[i] <= 1 or  # within range no wrap or
+                                          -2 <= pixel[i]+256-previous_pixel[i] <= 1 or  # within range with bottom wrap or
+                                          -2 <= pixel[i]-256-previous_pixel[i] <= 1 for i in range(3)])  # within range with top wrap
 
-        is_green_within_luma_range = (-32 <= pixel[1]-self.__pixel_list[current_pixel_index-1][1] <= 31 or
-                                      -32 <= pixel[1]+256-self.__pixel_list[current_pixel_index-1][1] <= 31 or
-                                      -32 <= pixel[1]-256-self.__pixel_list[current_pixel_index-1][1] <= 31)
+        is_green_within_luma_range = (-32 <= pixel[1]-previous_pixel[1] <= 31 or
+                                      -32 <= pixel[1]+256-previous_pixel[1] <= 31 or
+                                      -32 <= pixel[1]-256-previous_pixel[1] <= 31)
         is_red_within_luma_range = False
         is_blue_within_luma_range = False
-        if is_green_within_luma_range:
-            green_luma_difference = pixel[1] - self.__pixel_list[current_pixel_index-1][1]
-            if green_luma_difference < -32:  # previous pixel was 255 or something
+        if is_green_within_luma_range:  # avoid checking red and blue if green is already false
+            green_luma_difference = pixel[1] - previous_pixel[1]
+            if green_luma_difference < -32:  # bottom wraparound if necessary
                 green_luma_difference += 256
-            elif green_luma_difference > 31:  # current pixel is 255 or something
+            elif green_luma_difference > 31:  # top wraparound if necessary
                 green_luma_difference -= 256
-            is_red_within_luma_range = -8 <= (pixel[0]-self.__pixel_list[current_pixel_index-1][0]-green_luma_difference <= 7 or
-                                              -8 <= pixel[0]+256-self.__pixel_list[current_pixel_index-1][0]-green_luma_difference <= 7 or
-                                              -8 <= pixel[0]-256-self.__pixel_list[current_pixel_index-1][0]-green_luma_difference <= 7)
-            if is_red_within_luma_range:
-                is_blue_within_luma_range = -8 <= (pixel[2]-self.__pixel_list[current_pixel_index-1][2]-green_luma_difference <= 7 or
-                                                   -8 <= pixel[2]+256-self.__pixel_list[current_pixel_index-1][2]-green_luma_difference <= 7 or
-                                                   -8 <= pixel[2]-256-self.__pixel_list[current_pixel_index-1][2]-green_luma_difference <= 7)
+            is_red_within_luma_range = (-8 <= pixel[0]-previous_pixel[0]+green_luma_difference <= 7 or
+                                        -8 <= pixel[0]+256-previous_pixel[0]+green_luma_difference <= 7 or
+                                        -8 <= pixel[0]-256-previous_pixel[0]+green_luma_difference <= 7)
+            if is_red_within_luma_range:  # avoid checking blue if red is already false
+                is_blue_within_luma_range = (-8 <= pixel[2]-previous_pixel[2]+green_luma_difference <= 7 or
+                                             -8 <= pixel[2]+256-previous_pixel[2]+green_luma_difference <= 7 or
+                                             -8 <= pixel[2]-256-previous_pixel[2]+green_luma_difference <= 7)
         is_within_luma_range = all([is_green_within_luma_range, is_red_within_luma_range, is_blue_within_luma_range])
 
-        can_run = (pixel == self.__pixel_list[current_pixel_index-1])
+        can_run = (pixel == previous_pixel)
 
         return [is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]
 
@@ -121,6 +122,7 @@ class Image():
                 run -= 1
             else:
                 pixel = self.__pixel_list[current_pixel_index]
+                previous_pixel = self.__pixel_list[current_pixel_index-1]
 
                 # checking which encoding methods can be used for this pixel
                 is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run = self.__check_encoding_methods(current_pixel_index, running_pixels_array)
@@ -158,7 +160,7 @@ class Image():
                     # 1-2 = 255, 255+1 = 0, wraparound
                     difference = [0, 0, 0]
                     for c in range(3):
-                        difference[c] = pixel[c] - self.__pixel_list[current_pixel_index-1][c]
+                        difference[c] = pixel[c] - previous_pixel[c]
                         if difference[c] < -2:  # previous pixel was 255 or something
                             difference[c] += 256
                         elif difference[c] > 1:  # current pixel is 255 or something
@@ -171,17 +173,17 @@ class Image():
                     difference_green = int()  # 6 bits (0-63), -32 stored as 0, 31 stored as 63
                     difference_red_from_green = int()  # 3 bits (0-15), -8 stored as 0, 7 stored as 15
                     difference_blue_from_green = int()  # 4 bits (0-15), -8 stored as 0, 7 stored as 15
-                    difference_green = pixel[1] - self.__pixel_list[current_pixel_index-1][1]
+                    difference_green = pixel[1] - previous_pixel[1]
                     if difference_green < -32:  # previous pixel was 255 or something
                         difference_green += 256
                     elif difference_green > 31:  # current pixel is 255 or something
                         difference_green -= 256
-                    difference_red_from_green = pixel[0] - self.__pixel_list[current_pixel_index-1][0]-difference_green
+                    difference_red_from_green = pixel[0] - previous_pixel[0]+difference_green
                     if difference_red_from_green < -8:  # previous pixel was 255 or something
                         difference_red_from_green += 256
                     elif difference_red_from_green > 7:  # current pixel is 255 or something
                         difference_red_from_green -= 256
-                    difference_blue_from_green = pixel[2] - self.__pixel_list[current_pixel_index-1][2]-difference_green
+                    difference_blue_from_green = pixel[2] - previous_pixel[2]+difference_green
                     if difference_blue_from_green < -8:  # previous pixel was 255 or something
                         difference_blue_from_green += 256
                     elif difference_blue_from_green > 7:  # current pixel is 255 or something
