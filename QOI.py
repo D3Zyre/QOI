@@ -90,7 +90,10 @@ class Image():
         if an item is true that means that encoding method can be used
         """
         pixel = self.__pixel_list[current_pixel_index]
-        previous_pixel = self.__pixel_list[current_pixel_index-1]
+        if current_pixel_index > 0:
+            previous_pixel = self.__pixel_list[current_pixel_index-1]
+        else:
+            previous_pixel = [0, 0, 0, 255]
 
         is_in_running_pixels_array = (pixel in running_pixels_array)
 
@@ -135,6 +138,7 @@ class Image():
         running_pixels_array = [0 for _ in range(64)]  # check specification
         number_of_pixels = len(self.__pixel_list)
         run = 0
+        previous_pixel = [0, 0, 0, 255]
 
         # iterating through each pixel in the image
         for current_pixel_index in range(number_of_pixels):
@@ -146,7 +150,10 @@ class Image():
                 run -= 1
             else:
                 pixel = self.__pixel_list[current_pixel_index]
-                previous_pixel = self.__pixel_list[current_pixel_index-1]
+                if current_pixel_index > 0:
+                    previous_pixel = self.__pixel_list[current_pixel_index-1]
+                else:
+                    previous_pixel = [0, 0, 0, 255]
 
                 # checking which encoding methods can be used for this pixel
                 is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run = self.__check_encoding_methods(current_pixel_index, running_pixels_array)
@@ -154,7 +161,6 @@ class Image():
                 # if no compression method can be used, store RGB(A) pixel entirely
                 if not any([is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]):
                     counts[0] += 1
-                    # if none of the methods work, we have to story in RGB/RGBA directly
                     if self.__mode_string == "RGB":
                         image_bytes.extend(bytearray([int(254), int(pixel[0]), int(pixel[1]), int(pixel[2])]))
                     else:
