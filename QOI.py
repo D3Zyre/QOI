@@ -24,17 +24,22 @@ def uint8(num: int):
     return uint8_byte_array
 
 
-def closest_difference_wraparound(current: int, previous: int, wrap_range = (0, 255)):  # FIXME actually implement wrap_range
+def closest_difference_wraparound(current: int, previous: int, wrap_range = (0, 255)):
     """
     returns the signed absolute smallest difference (int, current-previous)
-    with wraparound operation in wrap_range
+    with wraparound operation in wrap_range (inclusive, inclusive)
     default range is (0, 255), that means 255 + 1 = 0
     """
+    assert type(current) == int, "type of current must be int"
+    assert type(previous) == int, "type of previous must be int"
+    assert type(wrap_range) == tuple, "type of wrap_range must be tuple"
+    assert len(wrap_range) == 2, "length of wrap_range must be 2"
+    assert wrap_range[1] >= wrap_range[0], "second item in wrap_range must be greater than or equal to first item"
     difference = int()
 
     normal_difference = current - previous
-    top_wrap_difference = current - previous + 256  # previous is close to top, current is close to bottom
-    bottom_wrap_difference = current - previous - 256  # previous is close to bottom, current is close to top
+    top_wrap_difference = current - previous + (wrap_range[1]+1 - wrap_range[0])  # previous is close to top, current is close to bottom
+    bottom_wrap_difference = current - previous - (wrap_range[1]+1 - wrap_range[0])  # previous is close to bottom, current is close to top
 
     absolute_normal_difference = abs(normal_difference)
     absolute_top_wrap_difference = abs(top_wrap_difference)
