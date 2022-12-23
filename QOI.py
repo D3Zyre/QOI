@@ -146,7 +146,10 @@ class Image():
         # predefining variables needed inside for loop
         counts = [0, 0, 0, 0, 0]  # RGB(A), Array Index, Diff, Luma, Run
         image_bytes = bytearray()
-        running_pixels_array = [0 for _ in range(64)]  # check specification
+        if self.__mode_string == "RGB":
+            running_pixels_array = [[0, 0, 0] for _ in range(64)]  # check specification
+        else:
+            running_pixels_array = [[0, 0, 0, 0] for _ in range(64)]
         number_of_pixels = len(self.__pixel_list)
         run = 0
 
@@ -220,7 +223,7 @@ class Image():
 
                 # update the array of 64 pixels
                 if self.__mode_string == "RGB":
-                    pixel_index_in_running_pixels = (pixel[0]*3 + pixel[1]*5 + pixel[2]*7) % 64
+                    pixel_index_in_running_pixels = (pixel[0]*3 + pixel[1]*5 + pixel[2]*7 + 255*11) % 64
                 else:
                     pixel_index_in_running_pixels = (pixel[0]*3 + pixel[1]*5 + pixel[2]*7 + pixel[3]*11) % 64
                 running_pixels_array[pixel_index_in_running_pixels] = pixel
@@ -252,13 +255,20 @@ class Image():
 
 if __name__ == "__main__":
     from PIL import Image as IMG
+    import os
 
-    print("loading image...")
-    img = IMG.open("IMG.BMP")
-    pixel_list = [list(pixel_values) for pixel_values in list(img.getdata())]
-    dimensions = [img.width, img.height]
-    print("creating image object")
-    img = Image(dimensions[0], dimensions[1])
-    img.set_pixel_list(pixel_list)
-    print("encoding and writing...")
-    img.encode("file")
+    for path, directories, files in os.walk(os.curdir):
+        for file in files:
+            if file.lower().endswith(".png"):
+                print("loading image {}...".format(file))
+                try:
+                    img = IMG.open(file)
+                    pixel_list = [list(pixel_values) for pixel_values in list(img.getdata())]
+                    dimensions = [img.width, img.height]
+                    print("creating image object")
+                    img = Image(dimensions[0], dimensions[1])
+                    img.set_pixel_list(pixel_list)
+                    print("encoding and writing...")
+                    img.encode(file)
+                except IMG.DecompressionBombError:
+                    pass
