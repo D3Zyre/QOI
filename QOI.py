@@ -229,16 +229,12 @@ class Image():
                 running_pixels_array[pixel_index_in_running_pixels] = pixel
         # end of for loop iterating each pixel
 
-        print(counts)  # DEBUG TODO remove
-
         # QOI 8-byte end of file marker
         end_of_file_bytes = bytearray([0, 0, 0, 0, 0, 0, 0, 1])
         bytes_to_write = bytearray()
         bytes_to_write.extend(file_header_bytes)
         bytes_to_write.extend(image_bytes)
         bytes_to_write.extend(end_of_file_bytes)
-
-        print(len(bytes_to_write)/1000000)  # DEBUG TODO remove
 
         # write bytes to file
         self.__write_file(filepathname, bytes_to_write)
