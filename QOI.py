@@ -68,17 +68,26 @@ class Image():
         self.__x_dimension = x_dimension
         self.__y_dimension = y_dimension
 
-    def set_pixel_list(self, pix_list: list):
-        assert type(pix_list) == list, "input was not a list"
-        assert len(pix_list) == self.__x_dimension*self.__y_dimension, "len() was not x_dimension*y_dimension"
-        assert all([type(i) == list for i in pix_list]), "each item in list needs to be list"
+    def set_pixel_list(self, pixel_list: list):
+        """
+        call this method to add pixel data to the Image object.
+        pixel_list is a list of lists, each sublist should have length of 3 for RGB mode, or 4 for RGBA mode
+        each item in sublists must be an int 
+        """
+        assert type(pixel_list) == list, "input was not a list"
+        assert len(pixel_list) == self.__x_dimension*self.__y_dimension, "len() was not x_dimension*y_dimension"
+        assert all([type(i) == list for i in pixel_list]), "each item in list needs to be list"
+        assert all([all([type(i) == int for i in ii]) for ii in pixel_list]), "each item in sublists needs to be int"
         if self.__mode_string == "RGB":
-            assert all([len(i) == 3 for i in pix_list]), "len of items in list needs to be 3 for RGB"
+            assert all([len(i) == 3 for i in pixel_list]), "len of items in list needs to be 3 for RGB"
         else:
-            assert all([len(i) == 4 for i in pix_list]), "len of items in list needs to be 4 for RGBA"
-        assert max([max(i) for i in pix_list]) < 256, "max was larger than 255"
-        assert min([min(i) for i in pix_list]) >= 0, "min was less than 0"
-        self.__pixel_list = pix_list
+            assert all([len(i) == 4 for i in pixel_list]), "len of items in list needs to be 4 for RGBA"
+        assert max([max(i) for i in pixel_list]) < 256, "max was larger than 255"
+        assert min([min(i) for i in pixel_list]) >= 0, "min was less than 0"
+
+        # FIXME assertations are incredibly slow
+
+        self.__pixel_list = pixel_list
 
     def __check_encoding_methods(self, current_pixel_index: int, running_pixels_array: list):
         """
@@ -129,6 +138,11 @@ class Image():
         return [is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]
 
     def encode(self, filepathname: str):
+        """
+        this method takes the image stored in the object (don't forget to set pixels of the image with set_pixel_list())
+        and encodes it using the QOI encoding algorithm,
+        the resulting bytes are then written to filepathname.
+        """
         assert type(self.__pixel_list) == list, "pixel list was not a list"
         assert len(self.__pixel_list) > 0, "pixel list was empty"
         if self.__mode_string == "RGB":
@@ -240,12 +254,19 @@ class Image():
         self.__write_file(filepathname, bytes_to_write)
 
     def __write_file(self, filepathname: str, bytes: bytearray):
+        """
+        writes bytes to file filepathname
+        """
         if not filepathname.endswith(".qoi"):
             filepathname += ".qoi"
         with open(filepathname, "wb") as file_writer:
             file_writer.write(bytes)
 
     def decode(self, file):
+        """
+        QOI decoder which writes the results to the Image object
+        this overwrites any preexisting data in the Image object
+        """
         pass
 
 
