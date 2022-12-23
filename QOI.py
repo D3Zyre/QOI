@@ -1,4 +1,4 @@
-def uint32(num: int):
+def uint32(num: int):  # O(1)
     """
     returns a 4 byte bytearray representation of the input int as a uint32
     """
@@ -12,7 +12,7 @@ def uint32(num: int):
     return uint32_byte_array
 
 
-def uint8(num: int):
+def uint8(num: int):  # O(1)
     """
     returns a 1 byte bytearray representation of the input int as a uint8
     """
@@ -24,7 +24,7 @@ def uint8(num: int):
     return uint8_byte_array
 
 
-def closest_difference_wraparound(current: int, previous: int, wrap_range = (0, 255)):
+def closest_difference_wraparound(current: int, previous: int, wrap_range = (0, 255)):  # O(1)
     """
     returns the signed absolute smallest difference (int, current-previous)
     with wraparound operation in wrap_range (inclusive, inclusive)
@@ -57,7 +57,7 @@ def closest_difference_wraparound(current: int, previous: int, wrap_range = (0, 
 
 
 class Image():
-    def __init__(self, x_dimension: int = 0, y_dimension: int = 0, mode_number_of_colors: str = "RGB", colorspace: int = 1):
+    def __init__(self, x_dimension: int = 0, y_dimension: int = 0, mode_number_of_colors: str = "RGB", colorspace: int = 1):  # O(1)
         """
         x_dimension is the width of the image in pixels, y_dimension is the height of the image in pixels
         mode_number_of_colors is either "RGB" or "RGBA"
@@ -73,7 +73,7 @@ class Image():
         self.__x_dimension = x_dimension
         self.__y_dimension = y_dimension
 
-    def set_pixel_list(self, pixel_list: list):
+    def set_pixel_list(self, pixel_list: list):  # O(n), where n is the number of pixels in pixel_list, len(pixel_list)
         """
         call this method to add pixel data to the Image object.
         pixel_list is a list of lists, each sublist should have length of 3 for RGB mode, or 4 for RGBA mode
@@ -81,20 +81,20 @@ class Image():
         """
         assert type(pixel_list) == list, "input was not a list"
         assert len(pixel_list) == self.__x_dimension*self.__y_dimension, "len() was not x_dimension*y_dimension"
-        assert all([type(i) == list for i in pixel_list]), "each item in list needs to be list"
-        assert all([all([type(i) == int for i in ii]) for ii in pixel_list]), "each item in sublists needs to be int"
+        assert all([type(i) == list for i in pixel_list]), "each item in list needs to be list"  # O(n), where n is len(pixel_list), the number of pixels in the image
+        assert all([all([type(i) == int for i in ii]) for ii in pixel_list]), "each item in sublists needs to be int"  # O(n), same as above
         if self.__mode_string == "RGB":
-            assert all([len(i) == 3 for i in pixel_list]), "len of items in list needs to be 3 for RGB"
+            assert all([len(i) == 3 for i in pixel_list]), "len of items in list needs to be 3 for RGB"  # O(n)
         else:
-            assert all([len(i) == 4 for i in pixel_list]), "len of items in list needs to be 4 for RGBA"
-        assert max([max(i) for i in pixel_list]) < 256, "max was larger than 255"
-        assert min([min(i) for i in pixel_list]) >= 0, "min was less than 0"
+            assert all([len(i) == 4 for i in pixel_list]), "len of items in list needs to be 4 for RGBA"  # O(n)
+        assert max([max(i) for i in pixel_list]) < 256, "max was larger than 255"  # O(n)
+        assert min([min(i) for i in pixel_list]) >= 0, "min was less than 0"  # O(n)
 
         # FIXME assertations are incredibly slow
 
         self.__pixel_list = pixel_list
 
-    def __check_encoding_methods(self, current_pixel_index: int, running_pixels_array: list):
+    def __check_encoding_methods(self, current_pixel_index: int, running_pixels_array: list):  # O(1)
         """
         as part of the encoding process,
         gets called for each pixel in the pixel list,
@@ -117,13 +117,13 @@ class Image():
             is_within_luma_range = True
             # then we don't need to check for any of those, which is the rest of them
         else:
-            is_in_running_pixels_array = (pixel in running_pixels_array)
+            is_in_running_pixels_array = (pixel in running_pixels_array)  # O(64) ---> O(1) because running_pixels_array always has len() of 64
             if is_in_running_pixels_array:  # NOTE this will prevent other things from being checked
                 is_within_difference_range = None
                 is_within_luma_range = None
                 # those can't be assumed but don't matter due to the order preference of the encoder
             else:
-                difference_red, difference_green, difference_blue = [closest_difference_wraparound(pixel[i], previous_pixel[i]) for i in range(3)]
+                difference_red, difference_green, difference_blue = [closest_difference_wraparound(pixel[i], previous_pixel[i]) for i in range(3)]  # O(1)
                 is_within_difference_range = all([-2 <= difference_red <= 1,
                                                 -2 <= difference_green <= 1,
                                                 -2 <= difference_blue <= 1])
@@ -135,14 +135,14 @@ class Image():
                     is_red_within_luma_range = False
                     is_blue_within_luma_range = False
                     if is_green_within_luma_range:  # avoid checking red and blue if green is already false
-                        is_red_within_luma_range = (-8 <= closest_difference_wraparound(pixel[0], previous_pixel[0]+difference_green) <= 7)
+                        is_red_within_luma_range = (-8 <= closest_difference_wraparound(pixel[0], previous_pixel[0]+difference_green) <= 7)  # O(1)
                         if is_red_within_luma_range:  # avoid checking blue if red is already false
-                            is_blue_within_luma_range = (-8 <= closest_difference_wraparound(pixel[2], previous_pixel[2]+difference_green) <= 7)
+                            is_blue_within_luma_range = (-8 <= closest_difference_wraparound(pixel[2], previous_pixel[2]+difference_green) <= 7)  # O(1)
                     is_within_luma_range = all([is_green_within_luma_range, is_red_within_luma_range, is_blue_within_luma_range])
 
         return [is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]
 
-    def encode(self, filepathname: str):
+    def encode(self, filepathname: str):  # O(n), where n is number_of_pixels in the image
         """
         this method takes the image stored in the object (don't forget to set pixels of the image with set_pixel_list())
         and encodes it using the QOI encoding algorithm,
@@ -173,14 +173,14 @@ class Image():
         run = 0
 
         # iterating through each pixel in the image
-        for current_pixel_index in range(number_of_pixels):
+        for current_pixel_index in range(number_of_pixels):  # O(n), where n is number_of_pixels
             # printing progress for debugging
             if current_pixel_index % 10000 == 0:
                 print("encoding: {:6.2f}%    \r".format(current_pixel_index/number_of_pixels*100), end="")
 
             if run > 0:  # if we are currently on a run of pixels, skip all pixels until after the run
                 run -= 1
-            else:
+            else:  # O(1)
                 pixel = self.__pixel_list[current_pixel_index]
                 if current_pixel_index > 0:
                     previous_pixel = self.__pixel_list[current_pixel_index-1]
@@ -188,10 +188,10 @@ class Image():
                     previous_pixel = [0, 0, 0, 255]
 
                 # checking which encoding methods can be used for this pixel
-                is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run = self.__check_encoding_methods(current_pixel_index, running_pixels_array)
+                is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run = self.__check_encoding_methods(current_pixel_index, running_pixels_array)  # O(1)
 
                 # if no compression method can be used, store RGB(A) pixel entirely
-                if not any([is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]):
+                if not any([is_in_running_pixels_array, is_within_difference_range, is_within_luma_range, can_run]):  # O(1)
                     counts[0] += 1
                     if self.__mode_string == "RGB":
                         image_bytes.extend(bytearray([int(254), int(pixel[0]), int(pixel[1]), int(pixel[2])]))
@@ -199,12 +199,12 @@ class Image():
                         image_bytes.extend(bytearray([int(255), int(pixel[0]), int(pixel[1]), int(pixel[2]), int(pixel[3])]))
 
                 # if a run of pixels is possible, encode that
-                elif can_run:
+                elif can_run:  # O(1)
                     counts[4] += 1
                     still_same = True
                     max_index = len(self.__pixel_list)-1
                     run = 0
-                    while still_same and run < 62:
+                    while still_same and run < 62:  # O(1), only goes up to 62, a constant
                         run += 1
                         if current_pixel_index+run <= max_index:
                             if self.__pixel_list[current_pixel_index+run] != pixel:
@@ -216,12 +216,12 @@ class Image():
                     run -=1  # to count the current pixel being encoded
 
                 # otherwise if the pixel is in the array of 64 pixels, encode that
-                elif is_in_running_pixels_array:
+                elif is_in_running_pixels_array:  # O(1)
                     counts[1] += 1
                     image_bytes.extend(bytearray([int(running_pixels_array.index(pixel))]))  # first two bits (flag) are 00, so number must be less than 64 (guaranteed from len(running_pixels_array))
 
                 # otherwise if the pixel is within the small difference range, encode that
-                elif is_within_difference_range:
+                elif is_within_difference_range:  # O(1)
                     counts[2] += 1
                     # -2 from previous pixel is stored as 0 (00), +1 is stored as 3 (11)
                     # 1-2 = 255, 255+1 = 0, wraparound
@@ -229,7 +229,7 @@ class Image():
                     image_bytes.extend(bytearray([int(64 + (difference[0]+2)*16 + (difference[1]+2)*4 + (difference[2]+2))]))  # first two bits (flag) are 01, so we add 64, each next two bits is dr, dg, db, bias of 2
 
                 # otherwise if the pixel is within the small luma range, encode that
-                elif is_within_luma_range:  # could be replaced with else but kept for clarity
+                elif is_within_luma_range:  # O(1). could be replaced with else but kept for clarity
                     counts[3] += 1
                     difference_green = int()  # 6 bits (0-63), -32 stored as 0, 31 stored as 63
                     difference_red_from_green = int()  # 3 bits (0-15), -8 stored as 0, 7 stored as 15
@@ -241,11 +241,11 @@ class Image():
                     image_bytes.extend(bytearray([int(128 + (difference_green+32)), int((difference_red_from_green+8)*16 + (difference_blue_from_green+8))]))  # two bytes, first two bits (flag) are 10, so we add 128, then difference green in the first byte, bias of 32 for that one. second byte is difference red from green then difference blue from green, bias of 8 for each of those
 
                 # update the array of 64 pixels
-                if self.__mode_string == "RGB":
+                if self.__mode_string == "RGB":  # O(1)
                     pixel_index_in_running_pixels = (pixel[0]*3 + pixel[1]*5 + pixel[2]*7 + 255*11) % 64
-                else:
+                else:  # O(1)
                     pixel_index_in_running_pixels = (pixel[0]*3 + pixel[1]*5 + pixel[2]*7 + pixel[3]*11) % 64
-                running_pixels_array[pixel_index_in_running_pixels] = pixel
+                running_pixels_array[pixel_index_in_running_pixels] = pixel  # O(1)
         # end of for loop iterating each pixel
 
         # QOI 8-byte end of file marker
@@ -256,7 +256,7 @@ class Image():
         bytes_to_write.extend(end_of_file_bytes)
 
         # write bytes to file
-        self.__write_file(filepathname, bytes_to_write)
+        self.__write_file(filepathname, bytes_to_write)  # O(n) I think
 
     def __write_file(self, filepathname: str, bytes: bytearray):
         """
@@ -278,19 +278,33 @@ class Image():
 if __name__ == "__main__":
     from PIL import Image as IMG
     import os
+    import time
+
+    times = ([], [], [])  # (seconds_for_getting_pixels, seconds_for_setting_pixel_list, seconds_for_encoding_and_writing)
 
     for path, directories, files in os.walk(os.curdir):
         for file in files:
             if file.lower().endswith(".png"):
                 print("loading image {}...".format(file))
                 try:
+                    times[0].append(time.time())
                     img = IMG.open(file)
                     pixel_list = [list(pixel_values) for pixel_values in list(img.getdata())]
+                    times[0][-1] = time.time() - times[0][-1]
+                    times[1].append(time.time())
                     dimensions = [img.width, img.height]
                     print("creating image object")
                     img = Image(dimensions[0], dimensions[1])
                     img.set_pixel_list(pixel_list)
+                    times[1][-1] = time.time() - times[1][-1]
+                    times[2].append(time.time())
                     print("encoding and writing...")
                     img.encode(file)
+                    times[2][-1] = time.time() - times[2][-1]
                 except IMG.DecompressionBombError:
                     pass
+    
+    times = (sum(times[0])/len(times[0]), sum(times[1])/len(times[1]), sum(times[2])/len(times[2]))
+    print("average times (seconds to get pixels, seconds to set pixel list, seconds to encode and write):\n{}".format(times))
+
+# TODO encode still needs to be checked for RGBA files
